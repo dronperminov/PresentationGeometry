@@ -5,7 +5,7 @@ from presentation import Presentation
 
 def main() -> None:
     with tempfile.TemporaryDirectory() as temp_path:
-        presentation = Presentation(presentation_path="empty.pptx", work_path=temp_path)
+        presentation = Presentation(presentation_path="../empty.pptx", work_path=temp_path)
 
         presentation.add_ellipse({"x": 20, "y": 2, "d": 4, "fill": "#7699d4"})
 
@@ -27,14 +27,14 @@ def main() -> None:
         presentation.add_polygons([
             {
                 "points": [{"x": 10, "y": 10}, {"x": 12, "y": 12}, {"x": 10, "y": 14}, {"x": 8, "y": 12}, {"x": 10, "y": 10}],
-                "stroke": "FF00FF",
+                "stroke": "#ff00ff",
                 "fill": "888888",
                 "thickness": 2.5
             },
             {
                 "points": [{"x": 13, "y": 5}, {"x": 14, "y": 6}, {"x": 13, "y": 7}, {"x": 10, "y": 7}, {"x": 9, "y": 6}, {"x": 10, "y": 5}],
-                "stroke": "FFFFFF",
-                "fill": "88FF88",
+                "stroke": "#ffffff",
+                "fill": "#88ff88",
                 "thickness": 0.5,
                 "rotate": 21
             },
@@ -47,7 +47,7 @@ def main() -> None:
             {"x": 4.6, "y": 16.1, "w": 1.2, "h": 2.6, "radius": 0.2, "fill": "#7699d4", "stroke": "#fff"}
         ])
 
-        presentation.save("examples/example.pptx")
+        presentation.save("basic.pptx")
 
 
 if __name__ == "__main__":

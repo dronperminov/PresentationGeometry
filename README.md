@@ -9,7 +9,7 @@
 - Возможность группировки фигур одного типа.
 
 ## Установка
-Для работы инструмента не требуются внешние зависимости
+Для работы инструмента не требуются внешние зависимости.
 
 ## Пример использования
 ```python
@@ -153,11 +153,34 @@ with tempfile.TemporaryDirectory() as work_dir:
 
 ## Примеры
 
-Пример использования можно найти в файле `example.py`
+Примеры использования можно найти в папке `examples`
 
-![Пример слайда](examples/example.png)
+### Пример 1. Базовые фигуры
 
-Скачать пример презентации: [examples/example.pptx](examples/example.pptx)
+Код примера находится в файле [examples/basic.py](examples/basic.py)
+
+![Пример слайда](examples/basic.png)
+
+Скачать пример презентации: [examples/basic.pptx](examples/basic.pptx)
+
+
+### Пример 2. Визуализация распределений
+
+Код примера находится в файле [examples/scatter.py](examples/scatter.py)
+
+![Пример слайда](examples/scatter.png)
+
+Скачать пример презентации: [examples/scatter.pptx](examples/scatter.pptx)
+
+
+### Пример 3. Гистограммы
+
+Код примера находится в файле [examples/histogram.py](examples/histogram.py)
+
+![Пример слайда](examples/histogram.png)
+
+Скачать пример презентации: [examples/histogram.pptx](examples/histogram.pptx)
+
 
 ## Лицензия
 MIT License
