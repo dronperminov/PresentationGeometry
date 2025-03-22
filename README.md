@@ -182,5 +182,14 @@ with tempfile.TemporaryDirectory() as work_dir:
 Скачать пример презентации: [examples/histogram.pptx](examples/histogram.pptx)
 
 
+### Пример 4. Полигоны
+
+Код примера находится в файле [examples/polygons.py](examples/polygons.py)
+
+![Пример слайда](examples/polygons.png)
+
+Скачать пример презентации: [examples/polygons.pptx](examples/polygons.pptx)
+
+
 ## Лицензия
 MIT License
