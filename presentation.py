@@ -2,6 +2,7 @@ import math
 import os
 import re
 import zipfile
+from collections import defaultdict
 from typing import List, Tuple
 from xml.etree import ElementTree
 
@@ -76,6 +77,18 @@ class Presentation:
 
         for polygon in polygons:
             group.append(self.make_polygon(polygon=polygon))
+
+        self.sp_tree.append(group)
+
+    def add_shapes(self, shapes: List[dict]) -> None:
+        if not shapes:
+            return
+
+        x, y, width, height = self.__get_shapes_bbox(shapes=shapes)
+        group = self.make_group(x=x, y=y, width=width, height=height)
+
+        for shape in shapes:
+            group.append(self.make_shape(shape=shape))
 
         self.sp_tree.append(group)
 
@@ -179,6 +192,21 @@ class Presentation:
 
         return polygon_node
 
+    def make_shape(self, shape: dict) -> ElementTree.Element:
+        if shape["shape"] == "line":
+            return self.make_line(line=shape)
+
+        if shape["shape"] == "ellipse":
+            return self.make_ellipse(ellipse=shape)
+
+        if shape["shape"] == "rectangle":
+            return self.make_rectangle(rectangle=shape)
+
+        if shape["shape"] == "polygon":
+            return self.make_polygon(polygon=shape)
+
+        raise ValueError(f'Unknown shape type "{shape["shape"]}"')
+
     def make_group(self, x: float, y: float, width: float, height: float) -> ElementTree.Element:
         group_node = ElementTree.Element("p:grpSp")
 
@@ -239,19 +267,19 @@ class Presentation:
 
     def __get_lines_bbox(self, lines: List[dict]) -> Tuple[float, float, float, float]:
         x1, y1, x2, y2 = lines[0]["x1"], lines[0]["y1"], lines[0]["x2"], lines[0]["y2"]
-        xmin, xmax = min(x1, x2), max(x1, x2)
-        ymin, ymax = min(y1, y2), max(y1, y2)
+        x_min, x_max = min(x1, x2), max(x1, x2)
+        y_min, y_max = min(y1, y2), max(y1, y2)
 
         for line in lines:
             x1, y1, x2, y2 = line["x1"], line["y1"], line["x2"], line["y2"]
-            xmin, ymin = min(xmin, x1, x2), min(ymin, y1, y2)
-            xmax, ymax = max(xmax, x1, x2), max(ymax, y1, y2)
+            x_min, y_min = min(x_min, x1, x2), min(y_min, y1, y2)
+            x_max, y_max = max(x_max, x1, x2), max(y_max, y1, y2)
 
-        return xmin, ymin, xmax - xmin, ymax - ymin
+        return x_min, y_min, x_max - x_min, y_max - y_min
 
     def __get_ellipses_bbox(self, ellipses: List[dict]) -> Tuple[float, float, float, float]:
-        xmin = xmax = ellipses[0]["x"]
-        ymin = ymax = ellipses[0]["y"]
+        x_min = x_max = ellipses[0]["x"]
+        y_min = y_max = ellipses[0]["y"]
 
         for ellipse in ellipses:
             dx, dy = self.__get_diameter(ellipse, key="dx"), self.__get_diameter(ellipse, key="dy")
@@ -268,10 +296,10 @@ class Presentation:
                 h = -dy * math.sin(t2) * math.cos(r) - dx * math.cos(t2) * math.sin(r)
                 x1, y1, x2, y2 = cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2
 
-            xmin, ymin = min(xmin, x1), min(ymin, y1)
-            xmax, ymax = max(xmax, x2), max(ymax, y2)
+            x_min, y_min = min(x_min, x1), min(y_min, y1)
+            x_max, y_max = max(x_max, x2), max(y_max, y2)
 
-        return xmin, ymin, xmax - xmin, ymax - ymin
+        return x_min, y_min, x_max - x_min, y_max - y_min
 
     def __get_rectangles_bbox(self, rectangles: List[dict]) -> Tuple[float, float, float, float]:
         polygons = []
@@ -287,8 +315,8 @@ class Presentation:
         return self.__get_polygons_bbox(polygons=polygons)
 
     def __get_polygons_bbox(self, polygons: List[dict]) -> Tuple[float, float, float, float]:
-        xmin = xmax = polygons[0]["points"][0]["x"]
-        ymin = ymax = polygons[0]["points"][0]["y"]
+        x_min = x_max = polygons[0]["points"][0]["x"]
+        y_min = y_max = polygons[0]["points"][0]["y"]
 
         for polygon in polygons:
             angle = polygon.get("rotate", 0) / 180 * math.pi
@@ -300,10 +328,43 @@ class Presentation:
                 x = cx + dx * math.cos(angle) - dy * math.sin(angle)
                 y = cy + dx * math.sin(angle) + dy * math.cos(angle)
 
-                xmin, ymin = min(xmin, x), min(ymin, y)
-                xmax, ymax = max(xmax, x), max(ymax, y)
+                x_min, y_min = min(x_min, x), min(y_min, y)
+                x_max, y_max = max(x_max, x), max(y_max, y)
 
-        return xmin, ymin, xmax - xmin, ymax - ymin
+        return x_min, y_min, x_max - x_min, y_max - y_min
+
+    def __get_shapes_bbox(self, shapes: List[dict]) -> Tuple[float, float, float, float]:
+        x_min, y_min, x_max, y_max = None, None, None, None
+        shape2shapes = defaultdict(list)
+
+        for shape in shapes:
+            shape2shapes[shape["shape"]].append(shape)
+
+        for shape_type, elements in shape2shapes.items():
+            if shape_type == "line":
+                x, y, w, h = self.__get_lines_bbox(lines=elements)
+            elif shape_type == "ellipse":
+                x, y, w, h = self.__get_ellipses_bbox(ellipses=elements)
+            elif shape_type == "rectangle":
+                x, y, w, h = self.__get_rectangles_bbox(rectangles=elements)
+            elif shape_type == "polygon":
+                x, y, w, h = self.__get_polygons_bbox(polygons=elements)
+            else:
+                raise ValueError(f'Unknown shape type "{shape_type}"')
+
+            if x_min is None or x < x_min:
+                x_min = x
+
+            if y_min is None or y < y_min:
+                y_min = y
+
+            if x_max is None or x + w > x_max:
+                x_max = x + w
+
+            if y_max is None or y + h > y_max:
+                y_max = y + h
+
+        return x_min, y_min, x_max - x_min, y_max - y_min
 
     def __get_coordinate(self, coordinate: float) -> str:
         return str(round(coordinate * 360000))

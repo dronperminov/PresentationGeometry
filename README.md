@@ -64,8 +64,10 @@ with tempfile.TemporaryDirectory() as work_dir:
 
 ```python
 {
-    "x": 20, "y": 2,
-    "dx": 4, "dy": 6,
+    "x": 20,
+    "y": 2,
+    "dx": 4,
+    "dy": 6,
     "rotate": 15,
     "fill": "#7699d4",
     "fill-opacity": 0.6,
@@ -137,13 +139,15 @@ with tempfile.TemporaryDirectory() as work_dir:
 - `add_line(line: dict)` – добавление линии;
 - `add_ellipse(ellipse: dict)` – добавление эллипса;
 - `add_rectangle(rectangle: dict)` – добавление прямоугольника;
-- `add_polygon(polygon: dict)` – добавление полигона.
+- `add_polygon(polygon: dict)` – добавление полигона;
+- `add_shape(shape: dict)` – добавление фигуры (должен содержаться ключ `shape` с одним из значений `line`, `ellipse`, `rectangle` или `polygon`).
 
-### Добавление нескольких фигур (групповое добавление)
+### Добавление нескольких фигур (с объединением в группу)
 - `add_lines(lines: List[dict])` – добавление линий;
 - `add_ellipses(ellipses: List[dict])` – добавление эллипсов;
 - `add_rectangles(rectangles: List[dict])` – добавление прямоугольников;
-- `add_polygons(polygons: List[dict])` – добавление полигонов.
+- `add_polygons(polygons: List[dict])` – добавление полигонов;
+- `add_shapes(shapes: List[dict])` – добавление фигур.
 
 ## Как это работает
 1. Используется заранее подготовленный пустой файл `empty.pptx`.
@@ -189,6 +193,15 @@ with tempfile.TemporaryDirectory() as work_dir:
 ![Пример слайда](examples/polygons.png)
 
 Скачать пример презентации: [examples/polygons.pptx](examples/polygons.pptx)
+
+
+### Пример 4. Фигуры
+
+Код примера находится в файле [examples/shapes.py](examples/shapes.py)
+
+![Пример слайда](examples/shapes.png)
+
+Скачать пример презентации: [examples/shapes.pptx](examples/shapes.pptx)
 
 
 ## Лицензия
