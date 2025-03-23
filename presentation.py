@@ -382,7 +382,15 @@ class Presentation:
             r, g, b = color
             return f"{r}{r}{g}{g}{b}{b}"
 
-        return color
+        if re.fullmatch(r"[\dA-F]{6}", color):
+            return color
+
+        if match := re.fullmatch(r"RGB\((?P<r>\d{1,3}),\s*(?P<g>\d{1,3}),\s*(?P<b>\d{1,3})\)", color):
+            r, g, b = min(int(match.group("r")), 255), min(int(match.group("g")), 255), min(int(match.group("b")), 255)
+            digits = "0123456789ABCDEF"
+            return f"{digits[r >> 4]}{digits[r & 15]}{digits[g >> 4]}{digits[g & 15]}{digits[b >> 4]}{digits[b & 15]}"
+
+        raise ValueError(f'Invalid color "{color}"')
 
     def __get_fraction(self, fraction: float) -> str:
         return str(round(max(0.0, min(1.0, fraction)) * 100000))
