@@ -3,36 +3,42 @@ import os
 import re
 import zipfile
 from collections import defaultdict
-from typing import List, Tuple
+from dataclasses import dataclass
+from typing import Dict, List, Tuple
 from xml.etree import ElementTree
+
+
+@dataclass
+class Slide:
+    filename: str
+    tree: ElementTree
+    sp_tree: ElementTree
 
 
 class Presentation:
     def __init__(self, presentation_path: str, work_path: str) -> None:
         self.presentation_path = presentation_path
         self.work_path = work_path
-        self.slide_path = os.path.join(self.work_path, "ppt", "slides", "slide1.xml")
 
         with zipfile.ZipFile(presentation_path, "r") as f:
             f.extractall(self.work_path)
 
-        self.tree = ElementTree.parse(self.slide_path)
-        self.sp_tree = self.__get_tree(root=self.tree.getroot())
+        self.slides = self.__get_slides()
         self.shape_id = 2
 
-    def add_line(self, line: dict) -> None:
-        self.sp_tree.append(self.make_line(line=line))
+    def add_line(self, line: dict, slide: str = "slide1") -> None:
+        self.slides[slide].sp_tree.append(self.make_line(line=line))
 
-    def add_ellipse(self, ellipse: dict) -> None:
-        self.sp_tree.append(self.make_ellipse(ellipse=ellipse))
+    def add_ellipse(self, ellipse: dict, slide: str = "slide1") -> None:
+        self.slides[slide].sp_tree.append(self.make_ellipse(ellipse=ellipse))
 
-    def add_rectangle(self, rectangle: dict) -> None:
-        self.sp_tree.append(self.make_rectangle(rectangle=rectangle))
+    def add_rectangle(self, rectangle: dict, slide: str = "slide1") -> None:
+        self.slides[slide].sp_tree.append(self.make_rectangle(rectangle=rectangle))
 
-    def add_polygon(self, polygon: dict) -> None:
-        self.sp_tree.append(self.make_polygon(polygon=polygon))
+    def add_polygon(self, polygon: dict, slide: str = "slide1") -> None:
+        self.slides[slide].sp_tree.append(self.make_polygon(polygon=polygon))
 
-    def add_lines(self, lines: List[dict]) -> None:
+    def add_lines(self, lines: List[dict], slide: str = "slide1") -> None:
         if not lines:
             return
 
@@ -42,9 +48,9 @@ class Presentation:
         for line in lines:
             group.append(self.make_line(line=line))
 
-        self.sp_tree.append(group)
+        self.slides[slide].sp_tree.append(group)
 
-    def add_ellipses(self, ellipses: List[dict]) -> None:
+    def add_ellipses(self, ellipses: List[dict], slide: str = "slide1") -> None:
         if not ellipses:
             return
 
@@ -54,9 +60,9 @@ class Presentation:
         for ellipse in ellipses:
             group.append(self.make_ellipse(ellipse=ellipse))
 
-        self.sp_tree.append(group)
+        self.slides[slide].sp_tree.append(group)
 
-    def add_rectangles(self, rectangles: List[dict]) -> None:
+    def add_rectangles(self, rectangles: List[dict], slide: str = "slide1") -> None:
         if not rectangles:
             return
 
@@ -66,9 +72,9 @@ class Presentation:
         for rectangle in rectangles:
             group.append(self.make_rectangle(rectangle=rectangle))
 
-        self.sp_tree.append(group)
+        self.slides[slide].sp_tree.append(group)
 
-    def add_polygons(self, polygons: List[dict]) -> None:
+    def add_polygons(self, polygons: List[dict], slide: str = "slide1") -> None:
         if not polygons:
             return
 
@@ -78,9 +84,9 @@ class Presentation:
         for polygon in polygons:
             group.append(self.make_polygon(polygon=polygon))
 
-        self.sp_tree.append(group)
+        self.slides[slide].sp_tree.append(group)
 
-    def add_shapes(self, shapes: List[dict]) -> None:
+    def add_shapes(self, shapes: List[dict], slide: str = "slide1") -> None:
         if not shapes:
             return
 
@@ -90,7 +96,7 @@ class Presentation:
         for shape in shapes:
             group.append(self.make_shape(shape=shape))
 
-        self.sp_tree.append(group)
+        self.slides[slide].sp_tree.append(group)
 
     def make_line(self, line: dict) -> ElementTree.Element:
         line_node = ElementTree.Element("p:cxnSp")
@@ -226,12 +232,38 @@ class Presentation:
         return group_node
 
     def save(self, path: str) -> None:
-        self.tree.write(self.slide_path)
+        for slide in self.slides.values():
+            slide.tree.write(os.path.join(self.work_path, "ppt", "slides", slide.filename))
 
         with zipfile.ZipFile(path, "w") as f:
             for root, _, files in os.walk(self.work_path):
                 for file in files:
                     f.write(os.path.join(root, file), os.path.relpath(os.path.join(root, file), self.work_path))
+
+    def __get_slides(self) -> Dict[str, Slide]:
+        slide2tree = {}
+
+        for filename in os.listdir(os.path.join(self.work_path, "ppt", "slides")):
+            if not filename.endswith(".xml"):
+                continue
+
+            name = filename.replace(".xml", "")
+            tree = ElementTree.parse(os.path.join(self.work_path, "ppt", "slides", filename))
+            sp_tree = self.__get_sp_tree(root=tree.getroot())
+            slide2tree[name] = Slide(filename=filename, tree=tree, sp_tree=sp_tree)
+
+        return slide2tree
+
+    def __get_sp_tree(self, root: ElementTree.Element) -> ElementTree.Element:
+        namespaces = {
+            "p": "http://schemas.openxmlformats.org/presentationml/2006/main",
+            "a": "http://schemas.openxmlformats.org/drawingml/2006/main"
+        }
+
+        for key, namespace in namespaces.items():
+            ElementTree.register_namespace(key, namespace)
+
+        return root.find("p:cSld", namespaces).find("p:spTree", namespaces)
 
     def __set_fill(self, node: ElementTree.Element, config: dict) -> None:
         if "fill" not in config:
@@ -253,17 +285,6 @@ class Presentation:
         opacity = config.get("stroke-opacity", config.get("opacity", 1))
         if opacity < 1:
             ElementTree.SubElement(fill, "a:alpha", {"val": self.__get_fraction(opacity)})
-
-    def __get_tree(self, root: ElementTree.Element) -> ElementTree.Element:
-        namespaces = {
-            "p": "http://schemas.openxmlformats.org/presentationml/2006/main",
-            "a": "http://schemas.openxmlformats.org/drawingml/2006/main"
-        }
-
-        for key, namespace in namespaces.items():
-            ElementTree.register_namespace(key, namespace)
-
-        return root.find("p:cSld", namespaces).find("p:spTree", namespaces)
 
     def __get_lines_bbox(self, lines: List[dict]) -> Tuple[float, float, float, float]:
         x1, y1, x2, y2 = lines[0]["x1"], lines[0]["y1"], lines[0]["x2"], lines[0]["y2"]

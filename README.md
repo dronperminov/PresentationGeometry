@@ -1,7 +1,7 @@
 # PresentationGeometry
 
 ## Описание
-Этот инструмент позволяет добавлять базовые геометрические фигуры в слайд PowerPoint (pptx). Поддерживаются линии, эллипсы, прямоугольники (включая закругленные углы) и полигоны. Работа осуществляется напрямую с XML-структурой файла pptx, что позволяет эффективно модифицировать содержимое презентации.
+Этот инструмент позволяет добавлять базовые геометрические фигуры на слайды PowerPoint (pptx). Поддерживаются линии, эллипсы, прямоугольники (включая закругленные углы) и полигоны. Работа осуществляется напрямую с XML-структурой файла pptx, что позволяет эффективно модифицировать содержимое презентации.
 
 ## Возможности
 - Добавление линий, эллипсов, прямоугольников и полигонов.
@@ -19,9 +19,9 @@ from presentation import Presentation
 with tempfile.TemporaryDirectory() as work_dir:
     presentation = Presentation(presentation_path="empty.pptx", work_path=work_dir)
 
-    presentation.add_ellipse({"x": 20, "y": 2, "d": 4, "fill": "#7699d4"})
-    presentation.add_rectangle({"x": 18, "y": 8, "w": 4, "h": 8.5, "radius": 0.25, "fill": "#dd7373", "stroke": "#222", "thickness": 3, "rotate": 30})
-    presentation.add_line({"x1": 1, "y1": 1, "x2": 10, "y2": 1, "thickness": 2, "stroke": "#7699d4"})
+    presentation.add_ellipse({"x": 20, "y": 2, "d": 4, "fill": "#7699d4"}, slide="slide1")
+    presentation.add_rectangle({"x": 18, "y": 8, "w": 4, "h": 8.5, "radius": 0.25, "fill": "#dd7373", "stroke": "#222", "thickness": 3, "rotate": 30}, slide="slide2")
+    presentation.add_line({"x1": 1, "y1": 1, "x2": 10, "y2": 1, "thickness": 2, "stroke": "#7699d4"}, slide="slide2")
 
     presentation.save("result.pptx")
 ```
@@ -150,9 +150,9 @@ with tempfile.TemporaryDirectory() as work_dir:
 - `add_shapes(shapes: List[dict])` – добавление фигур.
 
 ## Как это работает
-1. Используется заранее подготовленный пустой файл `empty.pptx`.
+1. Используется заранее подготовленный файл `empty.pptx` с десятью пустыми слайдами.
 2. Презентация распаковывается во временную директорию (pptx – это всего-лишь zip-архив).
-3. Внесение изменений происходит в файле `ppt/slides/slide1.xml` (работа ведётся только с первым слайдом).
+3. Внесение изменений происходит в файлах `ppt/slides/slide<number>.xml` (для работы необходимо указывать слайд без расширения, например, `slide1`).
 4. После внесения изменений всё запаковывается обратно в pptx-файл.
 
 ## Примеры
