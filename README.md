@@ -1,10 +1,12 @@
 # PresentationGeometry
 
 ## Описание
-Этот инструмент позволяет добавлять базовые геометрические фигуры на слайды PowerPoint (pptx). Поддерживаются линии, эллипсы, прямоугольники (включая закругленные углы) и полигоны. Работа осуществляется напрямую с XML-структурой файла pptx, что позволяет эффективно модифицировать содержимое презентации.
+Этот инструмент позволяет добавлять базовые геометрические фигуры на слайды PowerPoint (pptx).
+Поддерживаются линии, эллипсы, прямоугольники (включая закругленные углы), полигоны и текстовые поля.
+Работа осуществляется напрямую с XML-структурой файла pptx, что позволяет эффективно модифицировать содержимое презентации.
 
 ## Возможности
-- Добавление линий, эллипсов, прямоугольников и полигонов.
+- Добавление линий, эллипсов, прямоугольников, полигонов и текстовых полей.
 - Поддержка параметров заливки, обводки, толщины линий и прозрачности.
 - Возможность группировки фигур одного типа.
 
@@ -133,6 +135,51 @@ with tempfile.TemporaryDirectory() as work_dir:
 }
 ```
 
+### Текстовое поле
+- `x`, `y` – координата левого верхнего угла;
+- `w`, `h` – ширина и высота;
+- `text` – текстовое содержимое:
+- `size` – размер шрифта;
+- `align` – горизонтальное выравнивание (одно из значений: `left`, `center`, `right`);
+- `vertical-align` – вертикальное выравнивание (одно из значений: `top`, `center`, `bottom`);
+- `margin` – поля (словарь вида `{"left": float, "right": float, "top": float, "bottom": float}`);
+- `auto-fit` – автоматическая подстройка высоты поля (`True` / `False`);
+- `rotate` – угол поворота (в градусах);
+- `color` – цвет текста;
+- `bold` – жирный текст (`True` / `False`);
+- `italic` – курсивный текст (`True` / `False`);
+- `underline` – подчёркнутый текст (`True` / `False`);
+- `strike` – зачёркнутый текст (`True` / `False`);
+- `fill` – цвет заливки;
+- `fill-opacity` – непрозрачность заливки;
+- `stroke` – цвет обводки;
+- `stroke-opacity` – непрозрачность обводки;
+- `thickness` – толщина обводки.
+
+#### Пример:
+
+```python
+{
+    "x": 5,
+    "y": 7,
+    "w": 9,
+    "h": 4,
+    "text": "Hello, world!\nHow are you?",
+    "size": 25,
+    "align": "right",
+    "vertical-align": "bottom",
+    "margin": {"left": 0.5, "right": 0.5, "top": 1, "bottom": 0.25},
+    "auto-fit": False,
+    "rotate": 45,
+    "color": "#00ff00",
+    "stroke": "#ff0000",
+    "stroke-opacity": 0.5,
+    "fill": "#0000ff",
+    "fill-opacity": 0.2,
+    "thickness": 4
+}
+```
+
 ## Методы добавления фигур
 
 ### Добавление одной фигуры
@@ -140,6 +187,7 @@ with tempfile.TemporaryDirectory() as work_dir:
 - `add_ellipse(ellipse: dict)` – добавление эллипса;
 - `add_rectangle(rectangle: dict)` – добавление прямоугольника;
 - `add_polygon(polygon: dict)` – добавление полигона;
+- `add_textbox(textbod: dict)` – добавление текстового поля;
 - `add_shape(shape: dict)` – добавление фигуры (должен содержаться ключ `shape` с одним из значений `line`, `ellipse`, `rectangle` или `polygon`).
 
 ### Добавление нескольких фигур (с объединением в группу)
@@ -147,6 +195,7 @@ with tempfile.TemporaryDirectory() as work_dir:
 - `add_ellipses(ellipses: List[dict])` – добавление эллипсов;
 - `add_rectangles(rectangles: List[dict])` – добавление прямоугольников;
 - `add_polygons(polygons: List[dict])` – добавление полигонов;
+- `add_textboxes(textboxes: List[dict])` – добавление текстовых полей;
 - `add_shapes(shapes: List[dict])` – добавление фигур.
 
 ## Как это работает
@@ -202,6 +251,15 @@ with tempfile.TemporaryDirectory() as work_dir:
 ![Пример слайда](examples/shapes.png)
 
 Скачать пример презентации: [examples/shapes.pptx](examples/shapes.pptx)
+
+
+### Пример 5. Нейросеть
+
+Код примера находится в файле [examples/neural_network.py](examples/neural_network.py)
+
+![Пример слайда](examples/neural_network.png)
+
+Скачать пример презентации: [examples/neural_network.pptx](examples/neural_network.pptx)
 
 
 ## Лицензия

@@ -38,6 +38,9 @@ class Presentation:
     def add_polygon(self, polygon: dict, slide: str = "slide1") -> None:
         self.slides[slide].sp_tree.append(self.make_polygon(polygon=polygon))
 
+    def add_textbox(self, textbox: dict, slide: str = "slide1") -> None:
+        self.slides[slide].sp_tree.append(self.make_textbox(textbox=textbox))
+
     def add_lines(self, lines: List[dict], slide: str = "slide1") -> None:
         if not lines:
             return
@@ -83,6 +86,18 @@ class Presentation:
 
         for polygon in polygons:
             group.append(self.make_polygon(polygon=polygon))
+
+        self.slides[slide].sp_tree.append(group)
+
+    def add_textboxes(self, textboxes: List[dict], slide: str = "slide1") -> None:
+        if not textboxes:
+            return
+
+        x, y, width, height = self.__get_textboxes_bbox(textboxes=textboxes)
+        group = self.make_group(x=x, y=y, width=width, height=height)
+
+        for textbox in textboxes:
+            group.append(self.make_textbox(textbox=textbox))
 
         self.slides[slide].sp_tree.append(group)
 
@@ -198,6 +213,57 @@ class Presentation:
 
         return polygon_node
 
+    def make_textbox(self, textbox: dict) -> ElementTree.Element:
+        textbox_node = ElementTree.Element("p:sp")
+
+        nvsppr = ElementTree.SubElement(textbox_node, "p:nvSpPr")
+        ElementTree.SubElement(nvsppr, "p:cNvPr", {"id": str(self.shape_id), "name": f"TextBox {self.shape_id}"})
+        ElementTree.SubElement(nvsppr, "p:cNvSpPr", {"txBox": "1"})
+        ElementTree.SubElement(nvsppr, "p:nvPr")
+
+        sppr = ElementTree.SubElement(textbox_node, "p:spPr")
+        xfrm = ElementTree.SubElement(sppr, "a:xfrm", {"rot": self.__get_angle(textbox.get("rotate", 0))})
+        ElementTree.SubElement(xfrm, "a:off", {"x": self.__get_coordinate(textbox["x"]), "y": self.__get_coordinate(textbox["y"])})
+        ElementTree.SubElement(xfrm, "a:ext", {"cx": self.__get_coordinate(textbox["w"]), "cy": self.__get_coordinate(textbox["h"])})
+        ElementTree.SubElement(ElementTree.SubElement(sppr, "a:prstGeom", {"prst": "rect"}), "a:avLst")
+
+        tx_body = ElementTree.SubElement(textbox_node, "p:txBody")
+        margin = textbox.get("margin", {"left": 0, "right": 0, "top": 0, "bottom": 0})
+        body_attributes = {
+            "anchor": self.__get_alignment(textbox.get("vertical-align", "center")),
+            "anchorCtr": "0",
+            "rtlCol": "0",
+            "bIns": self.__get_coordinate(margin.get("bottom", 0.1)),
+            "lIns": self.__get_coordinate(margin.get("left", 0.25)),
+            "rIns": self.__get_coordinate(margin.get("right", 0.25)),
+            "tIns": self.__get_coordinate(margin.get("top", 0.1)),
+            "wrap": "square"
+        }
+
+        body_pr = ElementTree.SubElement(tx_body, "a:bodyPr", body_attributes)
+        ElementTree.SubElement(body_pr, "a:spAutoFit" if textbox.get("auto-fit", False) else "a:noAutoFit")
+        ElementTree.SubElement(tx_body, "a:lstStyle")
+
+        text_attributes = self.__get_text_formatting(formatting=textbox)
+
+        for line in textbox["text"].split("\n"):
+            p = ElementTree.SubElement(tx_body, "a:p")
+            ElementTree.SubElement(p, "a:pPr", {"algn": self.__get_alignment(textbox["align"])})
+            r = ElementTree.SubElement(p, "a:r")
+            rpr = ElementTree.SubElement(r, "a:rPr", {"smtClean": "0", **text_attributes})
+
+            if "color" in textbox:
+                ElementTree.SubElement(ElementTree.SubElement(rpr, "a:solidFill"), "a:srgbClr", {"val": self.__get_color(textbox["color"])})
+
+            ElementTree.SubElement(r, "a:t").text = line
+            ElementTree.SubElement(p, "a:endParaRPr", text_attributes)
+
+        self.__set_fill(sppr, config=textbox)
+        self.__set_stroke(sppr, config=textbox)
+        self.shape_id += 1
+
+        return textbox_node
+
     def make_shape(self, shape: dict) -> ElementTree.Element:
         if shape["shape"] == "line":
             return self.make_line(line=shape)
@@ -210,6 +276,9 @@ class Presentation:
 
         if shape["shape"] == "polygon":
             return self.make_polygon(polygon=shape)
+
+        if shape["shape"] == "textbox":
+            return self.make_textbox(textbox=shape)
 
         raise ValueError(f'Unknown shape type "{shape["shape"]}"')
 
@@ -354,6 +423,9 @@ class Presentation:
 
         return x_min, y_min, x_max - x_min, y_max - y_min
 
+    def __get_textboxes_bbox(self, textboxes: List[dict]) -> Tuple[float, float, float, float]:
+        return self.__get_rectangles_bbox(rectangles=textboxes)
+
     def __get_shapes_bbox(self, shapes: List[dict]) -> Tuple[float, float, float, float]:
         x_min, y_min, x_max, y_max = None, None, None, None
         shape2shapes = defaultdict(list)
@@ -370,6 +442,8 @@ class Presentation:
                 x, y, w, h = self.__get_rectangles_bbox(rectangles=elements)
             elif shape_type == "polygon":
                 x, y, w, h = self.__get_polygons_bbox(polygons=elements)
+            elif shape_type == "textbox":
+                x, y, w, h = self.__get_textboxes_bbox(textboxes=elements)
             else:
                 raise ValueError(f'Unknown shape type "{shape_type}"')
 
@@ -387,11 +461,35 @@ class Presentation:
 
         return x_min, y_min, x_max - x_min, y_max - y_min
 
+    def __get_text_formatting(self, formatting: dict) -> dict:
+        text_attributes = {"dirty": "0", "sz": self.__get_font_size(formatting["size"])}
+
+        if formatting.get("bold", False):
+            text_attributes["b"] = "1"
+
+        if formatting.get("italic", False):
+            text_attributes["i"] = "1"
+
+        if formatting.get("underline", False):
+            text_attributes["u"] = "sng"
+
+        if formatting.get("strike", False):
+            text_attributes["strike"] = "sngStrike"
+
+        return text_attributes
+
     def __get_coordinate(self, coordinate: float) -> str:
         return str(round(coordinate * 360000))
 
     def __get_size(self, size: float) -> str:
         return str(round(size * 12700))
+
+    def __get_font_size(self, size: float) -> str:
+        return str(round(size * 100))
+
+    def __get_alignment(self, alignment: str) -> str:
+        alignment2pptx = {"center": "ctr", "left": "l", "right": "r", "top": "t", "bottom": "b"}
+        return alignment2pptx[alignment]
 
     def __get_color(self, color: str) -> str:
         if color.startswith("#"):
