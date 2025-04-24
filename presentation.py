@@ -162,7 +162,7 @@ class Presentation:
         rectangle_node = ElementTree.Element("p:sp")
 
         nvsppr = ElementTree.SubElement(rectangle_node, "p:nvSpPr")
-        ElementTree.SubElement(nvsppr, "p:cNvPr", {"id": str(self.shape_id), "name": f"Ellipse {self.shape_id}"})
+        ElementTree.SubElement(nvsppr, "p:cNvPr", {"id": str(self.shape_id), "name": f"Rectangle {self.shape_id}"})
         ElementTree.SubElement(nvsppr, "p:cNvSpPr")
         ElementTree.SubElement(nvsppr, "p:nvPr")
 
@@ -351,6 +351,9 @@ class Presentation:
         ln = ElementTree.SubElement(node, "a:ln", {"w": self.__get_size(config.get("thickness", 1))})
         fill = ElementTree.SubElement(ElementTree.SubElement(ln, "a:solidFill"), "a:srgbClr", {"val": self.__get_color(config["stroke"])})
 
+        if config.get("stroke-dash", "solid") != "solid":
+            ElementTree.SubElement(ln, "a:prstDash", {"val": self.__get_stroke_dash(config["stroke-dash"])})
+
         opacity = config.get("stroke-opacity", config.get("opacity", 1))
         if opacity < 1:
             ElementTree.SubElement(fill, "a:alpha", {"val": self.__get_fraction(opacity)})
@@ -510,6 +513,19 @@ class Presentation:
             return f"{digits[r >> 4]}{digits[r & 15]}{digits[g >> 4]}{digits[g & 15]}{digits[b >> 4]}{digits[b & 15]}"
 
         raise ValueError(f'Invalid color "{color}"')
+
+    def __get_stroke_dash(self, stroke_dash: str) -> str:
+        dash2pptx = {
+            "solid": "solid",
+            "dashed": "dash",
+            "dotted": "sysDot",
+            "short-dashed": "sysDash",
+            "dash-dotted": "dashDot",
+            "long-dash": "lgDash",
+            "long-dash-dotted": "lgDashDot",
+            "long-dash-dot-dotted": "lgDashDotDot"
+        }
+        return dash2pptx[stroke_dash]
 
     def __get_fraction(self, fraction: float) -> str:
         return str(round(max(0.0, min(1.0, fraction)) * 100000))

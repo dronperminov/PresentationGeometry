@@ -34,6 +34,7 @@ with tempfile.TemporaryDirectory() as work_dir:
 - `x2`, `y2` – конечная координата;
 - `stroke` – цвет линии;
 - `stroke-opacity` – непрозрачность обводки;
+- `stroke-dash` – штрихи (одно из значений: `solid`, `dashed`, `dotted`, `short-dashed`, `dash-dotted`, `long-dashed`, `long-dash-dotted`, `long-dash-dot-dotted`);
 - `thickness` – толщина обводки.
 
 #### Пример:
@@ -46,6 +47,7 @@ with tempfile.TemporaryDirectory() as work_dir:
     "y2": 1,
     "stroke": "#7699d4",
     "stroke-opacity": 0.8,
+    "stroke-dash": "solid",
     "thickness": 2
 }
 ```
@@ -60,6 +62,7 @@ with tempfile.TemporaryDirectory() as work_dir:
 - `fill-opacity` – непрозрачность заливки;
 - `stroke` – цвет обводки;
 - `stroke-opacity` – непрозрачность обводки;
+- `stroke-dash` – штрихи;
 - `thickness` – толщина обводки.
 
 #### Пример
@@ -88,6 +91,7 @@ with tempfile.TemporaryDirectory() as work_dir:
 - `fill-opacity` – непрозрачность заливки;
 - `stroke` – цвет обводки;
 - `stroke-opacity` – непрозрачность обводки;
+- `stroke-dash` – штрихи;
 - `thickness` – толщина обводки.
 
 #### Пример:
@@ -115,6 +119,7 @@ with tempfile.TemporaryDirectory() as work_dir:
 - `fill-opacity` – непрозрачность заливки;
 - `stroke` – цвет обводки;
 - `stroke-opacity` – непрозрачность обводки;
+- `stroke-dash` – штрихи;
 - `thickness` – толщина обводки.
 
 #### Пример:
@@ -154,6 +159,7 @@ with tempfile.TemporaryDirectory() as work_dir:
 - `fill-opacity` – непрозрачность заливки;
 - `stroke` – цвет обводки;
 - `stroke-opacity` – непрозрачность обводки;
+- `stroke-dash` – штрихи;
 - `thickness` – толщина обводки.
 
 #### Пример:
