@@ -4,15 +4,15 @@ import re
 import zipfile
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
-from xml.etree import ElementTree
+from typing import List, Optional, Tuple
+
+from lxml import etree
 
 
 @dataclass
 class Slide:
-    filename: str
-    tree: ElementTree
-    sp_tree: ElementTree
+    tree: etree.ElementTree
+    sp_tree: etree.ElementTree
 
 
 class Presentation:
@@ -23,23 +23,29 @@ class Presentation:
         with zipfile.ZipFile(presentation_path, "r") as f:
             f.extractall(self.work_path)
 
-        self.slides = self.__get_slides()
-        self.shape_id = 2
+        self.namespaces = {
+            "p": "http://schemas.openxmlformats.org/presentationml/2006/main",
+            "a": "http://schemas.openxmlformats.org/drawingml/2006/main",
+            "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
+        }
+
+        self.slides = {}
+        self.shape_id = 1
 
     def add_line(self, line: dict, slide: str = "slide1") -> None:
-        self.slides[slide].sp_tree.append(self.make_line(line=line))
+        self.__add_to_slide(self.make_line(line=line), slide=slide)
 
     def add_ellipse(self, ellipse: dict, slide: str = "slide1") -> None:
-        self.slides[slide].sp_tree.append(self.make_ellipse(ellipse=ellipse))
+        self.__add_to_slide(self.make_ellipse(ellipse=ellipse), slide=slide)
 
     def add_rectangle(self, rectangle: dict, slide: str = "slide1") -> None:
-        self.slides[slide].sp_tree.append(self.make_rectangle(rectangle=rectangle))
+        self.__add_to_slide(self.make_rectangle(rectangle=rectangle), slide=slide)
 
     def add_polygon(self, polygon: dict, slide: str = "slide1") -> None:
-        self.slides[slide].sp_tree.append(self.make_polygon(polygon=polygon))
+        self.__add_to_slide(self.make_polygon(polygon=polygon), slide=slide)
 
     def add_textbox(self, textbox: dict, slide: str = "slide1") -> None:
-        self.slides[slide].sp_tree.append(self.make_textbox(textbox=textbox))
+        self.__add_to_slide(self.make_textbox(textbox=textbox), slide=slide)
 
     def add_lines(self, lines: List[dict], slide: str = "slide1") -> None:
         if not lines:
@@ -51,7 +57,7 @@ class Presentation:
         for line in lines:
             group.append(self.make_line(line=line))
 
-        self.slides[slide].sp_tree.append(group)
+        self.__add_to_slide(group, slide=slide)
 
     def add_ellipses(self, ellipses: List[dict], slide: str = "slide1") -> None:
         if not ellipses:
@@ -63,7 +69,7 @@ class Presentation:
         for ellipse in ellipses:
             group.append(self.make_ellipse(ellipse=ellipse))
 
-        self.slides[slide].sp_tree.append(group)
+        self.__add_to_slide(group, slide=slide)
 
     def add_rectangles(self, rectangles: List[dict], slide: str = "slide1") -> None:
         if not rectangles:
@@ -75,7 +81,7 @@ class Presentation:
         for rectangle in rectangles:
             group.append(self.make_rectangle(rectangle=rectangle))
 
-        self.slides[slide].sp_tree.append(group)
+        self.__add_to_slide(group, slide=slide)
 
     def add_polygons(self, polygons: List[dict], slide: str = "slide1") -> None:
         if not polygons:
@@ -87,7 +93,7 @@ class Presentation:
         for polygon in polygons:
             group.append(self.make_polygon(polygon=polygon))
 
-        self.slides[slide].sp_tree.append(group)
+        self.__add_to_slide(group, slide=slide)
 
     def add_textboxes(self, textboxes: List[dict], slide: str = "slide1") -> None:
         if not textboxes:
@@ -99,7 +105,7 @@ class Presentation:
         for textbox in textboxes:
             group.append(self.make_textbox(textbox=textbox))
 
-        self.slides[slide].sp_tree.append(group)
+        self.__add_to_slide(group, slide=slide)
 
     def add_shapes(self, shapes: List[dict], slide: str = "slide1") -> None:
         if not shapes:
@@ -111,46 +117,41 @@ class Presentation:
         for shape in shapes:
             group.append(self.make_shape(shape=shape))
 
-        self.slides[slide].sp_tree.append(group)
+        self.__add_to_slide(group, slide=slide)
 
-    def make_line(self, line: dict) -> ElementTree.Element:
-        line_node = ElementTree.Element("p:cxnSp")
+    def make_line(self, line: dict) -> etree.Element:
+        line_node = self.__element("p:cxnSp")
 
-        nvcxnsppr = ElementTree.SubElement(line_node, "p:nvCxnSpPr")
-        ElementTree.SubElement(nvcxnsppr, "p:cNvPr", {"id": str(self.shape_id), "name": f"Line {self.shape_id}"})
-        ElementTree.SubElement(nvcxnsppr, "p:cNvCxnSpPr")
-        ElementTree.SubElement(nvcxnsppr, "p:nvPr")
+        nvcxnsppr = self.__element("p:nvCxnSpPr", parent=line_node)
+        self.__element("p:cNvPr", {"id": str(self.shape_id), "name": f"Line {self.shape_id}"}, parent=nvcxnsppr)
+        self.__element("p:cNvCxnSpPr", parent=nvcxnsppr)
+        self.__element("p:nvPr", parent=nvcxnsppr)
 
         x1, y1, x2, y2 = line["x1"], line["y1"], line["x2"], line["y2"]
+        x, y, w, h = min(x1, x2), min(y1, y2), abs(x2 - x1), abs(y2 - y1)
 
-        sppr = ElementTree.SubElement(line_node, "p:spPr")
-        xfrm = ElementTree.SubElement(sppr, "a:xfrm", {"flipH": "0" if x1 <= x2 else "1", "flipV": "0" if y1 <= y2 else "1"})
-        ElementTree.SubElement(xfrm, "a:off", {"x": self.__get_coordinate(min(x1, x2)), "y": self.__get_coordinate(min(y1, y2))})
-        ElementTree.SubElement(xfrm, "a:ext", {"cx": self.__get_coordinate(abs(x2 - x1)), "cy": self.__get_coordinate(abs(y2 - y1))})
-
-        ElementTree.SubElement(ElementTree.SubElement(sppr, "a:prstGeom", {"prst": "line"}), "a:avLst")
+        sppr = self.__element("p:spPr", parent=line_node)
+        self.__set_xfrm(sppr, {"flipH": "0" if x1 <= x2 else "1", "flipV": "0" if y1 <= y2 else "1"}, x=x, y=y, cx=w, cy=h)
+        self.__element("a:avLst", parent=self.__element("a:prstGeom", {"prst": "line"}, parent=sppr))
 
         self.__set_stroke(sppr, config=line)
         self.shape_id += 1
 
         return line_node
 
-    def make_ellipse(self, ellipse: dict) -> ElementTree.Element:
-        ellipse_node = ElementTree.Element("p:sp")
+    def make_ellipse(self, ellipse: dict) -> etree.Element:
+        ellipse_node = self.__element("p:sp")
 
-        nvsppr = ElementTree.SubElement(ellipse_node, "p:nvSpPr")
-        ElementTree.SubElement(nvsppr, "p:cNvPr", {"id": str(self.shape_id), "name": f"Ellipse {self.shape_id}"})
-        ElementTree.SubElement(nvsppr, "p:cNvSpPr")
-        ElementTree.SubElement(nvsppr, "p:nvPr")
+        nvsppr = self.__element("p:nvSpPr", parent=ellipse_node)
+        self.__element("p:cNvPr", {"id": str(self.shape_id), "name": f"Ellipse {self.shape_id}"}, parent=nvsppr)
+        self.__element("p:cNvSpPr", parent=nvsppr)
+        self.__element("p:nvPr", parent=nvsppr)
 
         dx, dy = self.__get_diameter(ellipse, key="dx"), self.__get_diameter(ellipse, key="dy")
 
-        sppr = ElementTree.SubElement(ellipse_node, "p:spPr")
-        xfrm = ElementTree.SubElement(sppr, "a:xfrm", {"rot": self.__get_angle(ellipse.get("rotate", 0))})
-        ElementTree.SubElement(xfrm, "a:off", {"x": self.__get_coordinate(ellipse["x"]), "y": self.__get_coordinate(ellipse["y"])})
-        ElementTree.SubElement(xfrm, "a:ext", {"cx": self.__get_coordinate(dx), "cy": self.__get_coordinate(dy)})
-
-        ElementTree.SubElement(ElementTree.SubElement(sppr, "a:prstGeom", {"prst": "ellipse"}), "a:avLst")
+        sppr = self.__element("p:spPr", parent=ellipse_node)
+        self.__set_xfrm(sppr, {"rot": self.__get_angle(ellipse.get("rotate", 0))}, x=ellipse["x"], y=ellipse["y"], cx=dx, cy=dy)
+        self.__element("a:avLst", parent=self.__element("a:prstGeom", {"prst": "ellipse"}, parent=sppr))
 
         self.__set_fill(sppr, config=ellipse)
         self.__set_stroke(sppr, config=ellipse)
@@ -158,22 +159,20 @@ class Presentation:
 
         return ellipse_node
 
-    def make_rectangle(self, rectangle: dict) -> ElementTree.Element:
-        rectangle_node = ElementTree.Element("p:sp")
+    def make_rectangle(self, rectangle: dict) -> etree.Element:
+        rectangle_node = self.__element("p:sp")
 
-        nvsppr = ElementTree.SubElement(rectangle_node, "p:nvSpPr")
-        ElementTree.SubElement(nvsppr, "p:cNvPr", {"id": str(self.shape_id), "name": f"Rectangle {self.shape_id}"})
-        ElementTree.SubElement(nvsppr, "p:cNvSpPr")
-        ElementTree.SubElement(nvsppr, "p:nvPr")
+        nvsppr = self.__element("p:nvSpPr", parent=rectangle_node)
+        self.__element("p:cNvPr", {"id": str(self.shape_id), "name": f"Rectangle {self.shape_id}"}, parent=nvsppr)
+        self.__element("p:cNvSpPr", parent=nvsppr)
+        self.__element("p:nvPr", parent=nvsppr)
 
-        sppr = ElementTree.SubElement(rectangle_node, "p:spPr")
-        xfrm = ElementTree.SubElement(sppr, "a:xfrm", {"rot": self.__get_angle(rectangle.get("rotate", 0))})
-        ElementTree.SubElement(xfrm, "a:off", {"x": self.__get_coordinate(rectangle["x"]), "y": self.__get_coordinate(rectangle["y"])})
-        ElementTree.SubElement(xfrm, "a:ext", {"cx": self.__get_coordinate(rectangle["w"]), "cy": self.__get_coordinate(rectangle["h"])})
+        sppr = self.__element("p:spPr", parent=rectangle_node)
+        self.__set_xfrm(sppr, {"rot": self.__get_angle(rectangle.get("rotate", 0))}, x=rectangle["x"], y=rectangle["y"], cx=rectangle["w"], cy=rectangle["h"])
 
-        geom = ElementTree.SubElement(sppr, "a:prstGeom", {"prst": "roundRect"})
-        avlst = ElementTree.SubElement(geom, "a:avLst")
-        ElementTree.SubElement(avlst, "a:gd", {"name": "adj", "fmla": f'val {self.__get_fraction(rectangle.get("radius", 0) / 2)}'})
+        geom = self.__element("a:prstGeom", {"prst": "roundRect"}, parent=sppr)
+        avlst = self.__element("a:avLst", parent=geom)
+        self.__element("a:gd", {"name": "adj", "fmla": f'val {self.__get_fraction(rectangle.get("radius", 0) / 2)}'}, parent=avlst)
 
         self.__set_fill(sppr, config=rectangle)
         self.__set_stroke(sppr, config=rectangle)
@@ -181,31 +180,29 @@ class Presentation:
 
         return rectangle_node
 
-    def make_polygon(self, polygon: dict) -> ElementTree.Element:
+    def make_polygon(self, polygon: dict) -> etree.Element:
         x, y, width, height = self.__get_polygons_bbox(polygons=[polygon])
 
-        polygon_node = ElementTree.Element("p:sp")
+        polygon_node = self.__element("p:sp")
 
-        nvsppr = ElementTree.SubElement(polygon_node, "p:nvSpPr")
-        ElementTree.SubElement(nvsppr, "p:cNvPr", {"id": str(self.shape_id), "name": f"Polygon {self.shape_id}"})
-        ElementTree.SubElement(nvsppr, "p:cNvSpPr")
-        ElementTree.SubElement(nvsppr, "p:nvPr")
+        nvsppr = self.__element("p:nvSpPr", parent=polygon_node)
+        self.__element("p:cNvPr", {"id": str(self.shape_id), "name": f"Polygon {self.shape_id}"}, parent=nvsppr)
+        self.__element("p:cNvSpPr", parent=nvsppr)
+        self.__element("p:nvPr", parent=nvsppr)
 
-        sppr = ElementTree.SubElement(polygon_node, "p:spPr")
-        xfrm = ElementTree.SubElement(sppr, "a:xfrm", {"rot": self.__get_angle(polygon.get("rotate", 0))})
-        ElementTree.SubElement(xfrm, "a:off", {"x": self.__get_coordinate(x), "y": self.__get_coordinate(y)})
-        ElementTree.SubElement(xfrm, "a:ext", {"cx": self.__get_coordinate(width), "cy": self.__get_coordinate(height)})
+        sppr = self.__element("p:spPr", parent=polygon_node)
+        self.__set_xfrm(sppr, {"rot": self.__get_angle(polygon.get("rotate", 0))}, x=x, y=y, cx=width, cy=height)
 
-        cust_geom = ElementTree.SubElement(sppr, "a:custGeom")
-        ElementTree.SubElement(cust_geom, "a:avLst")
-        ElementTree.SubElement(cust_geom, "a:ahLst")
-        ElementTree.SubElement(cust_geom, "a:rect", {"b": "b", "l": "l", "r": "r", "t": "t"})
+        cust_geom = self.__element("a:custGeom", parent=sppr)
+        self.__element("a:avLst", parent=cust_geom)
+        self.__element("a:ahLst", parent=cust_geom)
+        self.__element("a:rect", {"b": "b", "l": "l", "r": "r", "t": "t"}, parent=cust_geom)
 
-        path = ElementTree.SubElement(ElementTree.SubElement(cust_geom, "a:pathLst"), "a:path", {"w": self.__get_coordinate(width), "h": self.__get_coordinate(height)})
+        path = self.__element("a:path", {"w": self.__get_coordinate(width), "h": self.__get_coordinate(height)}, parent=self.__element("a:pathLst", parent=cust_geom))
         for i, point in enumerate(polygon["points"]):
-            to = ElementTree.SubElement(path, "a:moveTo" if i == 0 else "a:lnTo")
-            ElementTree.SubElement(to, "a:pt", {"x": self.__get_coordinate(point["x"] - x), "y": self.__get_coordinate(point["y"] - y)})
-        ElementTree.SubElement(path, "a:close")
+            to = self.__element("a:moveTo" if i == 0 else "a:lnTo", parent=path)
+            self.__element("a:pt", {"x": self.__get_coordinate(point["x"] - x), "y": self.__get_coordinate(point["y"] - y)}, parent=to)
+        self.__element("a:close", parent=path)
 
         self.__set_fill(sppr, config=polygon)
         self.__set_stroke(sppr, config=polygon)
@@ -213,21 +210,19 @@ class Presentation:
 
         return polygon_node
 
-    def make_textbox(self, textbox: dict) -> ElementTree.Element:
-        textbox_node = ElementTree.Element("p:sp")
+    def make_textbox(self, textbox: dict) -> etree.Element:
+        textbox_node = self.__element("p:sp")
 
-        nvsppr = ElementTree.SubElement(textbox_node, "p:nvSpPr")
-        ElementTree.SubElement(nvsppr, "p:cNvPr", {"id": str(self.shape_id), "name": f"TextBox {self.shape_id}"})
-        ElementTree.SubElement(nvsppr, "p:cNvSpPr", {"txBox": "1"})
-        ElementTree.SubElement(nvsppr, "p:nvPr")
+        nvsppr = self.__element("p:nvSpPr", parent=textbox_node)
+        self.__element("p:cNvPr", {"id": str(self.shape_id), "name": f"TextBox {self.shape_id}"}, parent=nvsppr)
+        self.__element("p:cNvSpPr", {"txBox": "1"}, parent=nvsppr)
+        self.__element("p:nvPr", parent=nvsppr)
 
-        sppr = ElementTree.SubElement(textbox_node, "p:spPr")
-        xfrm = ElementTree.SubElement(sppr, "a:xfrm", {"rot": self.__get_angle(textbox.get("rotate", 0))})
-        ElementTree.SubElement(xfrm, "a:off", {"x": self.__get_coordinate(textbox["x"]), "y": self.__get_coordinate(textbox["y"])})
-        ElementTree.SubElement(xfrm, "a:ext", {"cx": self.__get_coordinate(textbox["w"]), "cy": self.__get_coordinate(textbox["h"])})
-        ElementTree.SubElement(ElementTree.SubElement(sppr, "a:prstGeom", {"prst": "rect"}), "a:avLst")
+        sppr = self.__element("p:spPr", parent=textbox_node)
+        self.__set_xfrm(sppr, {"rot": self.__get_angle(textbox.get("rotate", 0))}, x=textbox["x"], y=textbox["y"], cx=textbox["w"], cy=textbox["h"])
+        self.__element("a:avLst", parent=self.__element("a:prstGeom", {"prst": "rect"}, parent=sppr))
 
-        tx_body = ElementTree.SubElement(textbox_node, "p:txBody")
+        tx_body = self.__element("p:txBody", parent=textbox_node)
         margin = textbox.get("margin", {"left": 0, "right": 0, "top": 0, "bottom": 0})
         body_attributes = {
             "anchor": self.__get_alignment(textbox.get("vertical-align", "center")),
@@ -240,23 +235,23 @@ class Presentation:
             "wrap": "square"
         }
 
-        body_pr = ElementTree.SubElement(tx_body, "a:bodyPr", body_attributes)
-        ElementTree.SubElement(body_pr, "a:spAutoFit" if textbox.get("auto-fit", False) else "a:noAutoFit")
-        ElementTree.SubElement(tx_body, "a:lstStyle")
+        body_pr = self.__element("a:bodyPr", body_attributes, parent=tx_body)
+        self.__element("a:spAutoFit" if textbox.get("auto-fit", False) else "a:noAutoFit", parent=body_pr)
+        self.__element("a:lstStyle", parent=tx_body)
 
         text_attributes = self.__get_text_formatting(formatting=textbox)
 
         for line in textbox["text"].split("\n"):
-            p = ElementTree.SubElement(tx_body, "a:p")
-            ElementTree.SubElement(p, "a:pPr", {"algn": self.__get_alignment(textbox["align"])})
-            r = ElementTree.SubElement(p, "a:r")
-            rpr = ElementTree.SubElement(r, "a:rPr", {"smtClean": "0", **text_attributes})
+            p = self.__element("a:p", parent=tx_body)
+            self.__element("a:pPr", {"algn": self.__get_alignment(textbox["align"])}, parent=p)
+            r = self.__element("a:r", parent=p)
+            rpr = self.__element("a:rPr", {"smtClean": "0", **text_attributes}, parent=r)
 
             if "color" in textbox:
-                ElementTree.SubElement(ElementTree.SubElement(rpr, "a:solidFill"), "a:srgbClr", {"val": self.__get_color(textbox["color"])})
+                self.__element("a:srgbClr", {"val": self.__get_color(textbox["color"])}, parent=self.__element("a:solidFill", parent=rpr))
 
-            ElementTree.SubElement(r, "a:t").text = line
-            ElementTree.SubElement(p, "a:endParaRPr", text_attributes)
+            self.__element("a:t", parent=r).text = line
+            self.__element("a:endParaRPr", text_attributes, parent=p)
 
         self.__set_fill(sppr, config=textbox)
         self.__set_stroke(sppr, config=textbox)
@@ -264,7 +259,7 @@ class Presentation:
 
         return textbox_node
 
-    def make_shape(self, shape: dict) -> ElementTree.Element:
+    def make_shape(self, shape: dict) -> etree.Element:
         if shape["shape"] == "line":
             return self.make_line(line=shape)
 
@@ -282,81 +277,81 @@ class Presentation:
 
         raise ValueError(f'Unknown shape type "{shape["shape"]}"')
 
-    def make_group(self, x: float, y: float, width: float, height: float) -> ElementTree.Element:
-        group_node = ElementTree.Element("p:grpSp")
+    def make_group(self, x: float, y: float, width: float, height: float) -> etree.Element:
+        group_node = self.__element("p:grpSp")
 
-        nvgrpsppr = ElementTree.SubElement(group_node, "p:nvGrpSpPr")
-        ElementTree.SubElement(nvgrpsppr, "p:cNvPr", {"id": str(self.shape_id), "name": f"Group {self.shape_id}"})
-        ElementTree.SubElement(nvgrpsppr, "p:cNvGrpSpPr")
-        ElementTree.SubElement(nvgrpsppr, "p:nvPr")
+        nvgrpsppr = self.__element("p:nvGrpSpPr", parent=group_node)
+        self.__element("p:cNvPr", {"id": str(self.shape_id), "name": f"Group {self.shape_id}"}, parent=nvgrpsppr)
+        self.__element("p:cNvGrpSpPr", parent=nvgrpsppr)
+        self.__element("p:nvPr", parent=nvgrpsppr)
 
-        grpsppr = ElementTree.SubElement(group_node, "p:grpSpPr")
-        xfrm = ElementTree.SubElement(grpsppr, "a:xfrm")
-        ElementTree.SubElement(xfrm, "a:off", {"x": self.__get_coordinate(x), "y": self.__get_coordinate(y)})
-        ElementTree.SubElement(xfrm, "a:ext", {"cx": self.__get_coordinate(width), "cy": self.__get_coordinate(height)})
-        ElementTree.SubElement(xfrm, "a:chOff", {"x": self.__get_coordinate(x), "y": self.__get_coordinate(y)})
-        ElementTree.SubElement(xfrm, "a:chExt", {"cx": self.__get_coordinate(width), "cy": self.__get_coordinate(height)})
+        grpsppr = self.__element("p:grpSpPr", parent=group_node)
+        xfrm = self.__element("a:xfrm", parent=grpsppr)
+        self.__element("a:off", {"x": self.__get_coordinate(x), "y": self.__get_coordinate(y)}, parent=xfrm)
+        self.__element("a:ext", {"cx": self.__get_coordinate(width), "cy": self.__get_coordinate(height)}, parent=xfrm)
+        self.__element("a:chOff", {"x": self.__get_coordinate(x), "y": self.__get_coordinate(y)}, parent=xfrm)
+        self.__element("a:chExt", {"cx": self.__get_coordinate(width), "cy": self.__get_coordinate(height)}, parent=xfrm)
         self.shape_id += 1
 
         return group_node
 
     def save(self, path: str) -> None:
-        for slide in self.slides.values():
-            slide.tree.write(os.path.join(self.work_path, "ppt", "slides", slide.filename))
+        for name, slide in self.slides.items():
+            slide.tree.write(os.path.join(self.work_path, "ppt", "slides", f"{name}.xml"))
 
-        with zipfile.ZipFile(path, "w") as f:
+        with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as f:
             for root, _, files in os.walk(self.work_path):
                 for file in files:
                     f.write(os.path.join(root, file), os.path.relpath(os.path.join(root, file), self.work_path))
 
-    def __get_slides(self) -> Dict[str, Slide]:
-        slide2tree = {}
+    def __add_to_slide(self, node: etree.ElementTree, slide: str = "slide1") -> None:
+        if slide not in self.slides:
+            tree = etree.parse(os.path.join(self.work_path, "ppt", "slides", f"{slide}.xml"))
+            sp_tree = tree.getroot().find("p:cSld", self.namespaces).find("p:spTree", self.namespaces)
+            self.slides[slide] = Slide(tree=tree, sp_tree=sp_tree)
 
-        for filename in os.listdir(os.path.join(self.work_path, "ppt", "slides")):
-            if not filename.endswith(".xml"):
-                continue
+        self.slides[slide].sp_tree.append(node)
 
-            name = filename.replace(".xml", "")
-            tree = ElementTree.parse(os.path.join(self.work_path, "ppt", "slides", filename))
-            sp_tree = self.__get_sp_tree(root=tree.getroot())
-            slide2tree[name] = Slide(filename=filename, tree=tree, sp_tree=sp_tree)
+    def __element(self, tag: str, attrib: Optional[dict] = None, parent: Optional[etree.Element] = None) -> etree.Element:
+        namespace, tag_name = tag.split(":")
 
-        return slide2tree
+        if attrib is None:
+            attrib = {}
 
-    def __get_sp_tree(self, root: ElementTree.Element) -> ElementTree.Element:
-        namespaces = {
-            "p": "http://schemas.openxmlformats.org/presentationml/2006/main",
-            "a": "http://schemas.openxmlformats.org/drawingml/2006/main"
-        }
+        if parent is not None:
+            return etree.SubElement(parent, etree.QName(self.namespaces[namespace], tag_name), attrib=attrib)
 
-        for key, namespace in namespaces.items():
-            ElementTree.register_namespace(key, namespace)
+        return etree.Element(etree.QName(self.namespaces[namespace], tag_name), attrib=attrib)
 
-        return root.find("p:cSld", namespaces).find("p:spTree", namespaces)
-
-    def __set_fill(self, node: ElementTree.Element, config: dict) -> None:
+    def __set_fill(self, node: etree.Element, config: dict) -> None:
         if "fill" not in config:
             return
 
-        fill = ElementTree.SubElement(ElementTree.SubElement(node, "a:solidFill"), "a:srgbClr", {"val": self.__get_color(config["fill"])})
+        fill = self.__element("a:srgbClr", {"val": self.__get_color(config["fill"])}, parent=self.__element("a:solidFill", parent=node))
         opacity = config.get("fill-opacity", config.get("opacity", 1))
 
         if opacity < 1:
-            ElementTree.SubElement(fill, "a:alpha", {"val": self.__get_fraction(opacity)})
+            self.__element("a:alpha", {"val": self.__get_fraction(opacity)}, parent=fill)
 
-    def __set_stroke(self, node: ElementTree.Element, config: dict) -> None:
+    def __set_stroke(self, node: etree.Element, config: dict) -> None:
         if not config.get("stroke"):
             return
 
-        ln = ElementTree.SubElement(node, "a:ln", {"w": self.__get_size(config.get("thickness", 1))})
-        fill = ElementTree.SubElement(ElementTree.SubElement(ln, "a:solidFill"), "a:srgbClr", {"val": self.__get_color(config["stroke"])})
+        ln = self.__element("a:ln", {"w": self.__get_size(config.get("thickness", 1))}, parent=node)
+        fill = self.__element("a:srgbClr", {"val": self.__get_color(config["stroke"])}, parent=self.__element("a:solidFill", parent=ln))
 
         if config.get("stroke-dash", "solid") != "solid":
-            ElementTree.SubElement(ln, "a:prstDash", {"val": self.__get_stroke_dash(config["stroke-dash"])})
+            self.__element("a:prstDash", {"val": self.__get_stroke_dash(config["stroke-dash"])}, parent=ln)
 
         opacity = config.get("stroke-opacity", config.get("opacity", 1))
         if opacity < 1:
-            ElementTree.SubElement(fill, "a:alpha", {"val": self.__get_fraction(opacity)})
+            self.__element("a:alpha", {"val": self.__get_fraction(opacity)}, parent=fill)
+
+    def __set_xfrm(self, sppr: etree.Element, attrib: dict, x: float, y: float, cx: float, cy: float) -> etree.Element:
+        xfrm = self.__element("a:xfrm", attrib, parent=sppr)
+        self.__element("a:off", {"x": self.__get_coordinate(x), "y": self.__get_coordinate(y)}, parent=xfrm)
+        self.__element("a:ext", {"cx": self.__get_coordinate(cx), "cy": self.__get_coordinate(cy)}, parent=xfrm)
+        return xfrm
 
     def __get_lines_bbox(self, lines: List[dict]) -> Tuple[float, float, float, float]:
         x1, y1, x2, y2 = lines[0]["x1"], lines[0]["y1"], lines[0]["x2"], lines[0]["y2"]
@@ -507,7 +502,7 @@ class Presentation:
         if re.fullmatch(r"[\dA-F]{6}", color):
             return color
 
-        if match := re.fullmatch(r"RGB\((?P<r>\d{1,3}),\s*(?P<g>\d{1,3}),\s*(?P<b>\d{1,3})\)", color):
+        if match := re.fullmatch(r"RGB\((?P<r>\d{1,3}),\s*(?P<g>\d{1,3}),\s*(?P<b>\d{1,3})\)", color, re.I):
             r, g, b = min(int(match.group("r")), 255), min(int(match.group("g")), 255), min(int(match.group("b")), 255)
             digits = "0123456789ABCDEF"
             return f"{digits[r >> 4]}{digits[r & 15]}{digits[g >> 4]}{digits[g & 15]}{digits[b >> 4]}{digits[b & 15]}"
